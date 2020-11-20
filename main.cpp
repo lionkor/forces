@@ -1,8 +1,10 @@
 #include <SFML/Graphics.hpp>
+#include <ctime>
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <iostream>
+#include <random>
 
 using glm::vec2;
 
@@ -17,7 +19,7 @@ public:
         : pos(pos)
         , vel(vel)
         , radius(radius)
-        , mass(2 * M_PI * radius * radius) { }
+        , mass(radius) { }
     virtual ~PhysicsObject() { }
 
     bool collides_with(const PhysicsObject& other) const {
@@ -59,15 +61,17 @@ public:
 };
 
 int main() {
+    srand(time(nullptr));
     sf::RenderWindow window(sf::VideoMode(1280, 720), "forces");
 
     sf::Event event;
 
     std::vector<PhysicsObject> objs;
-    objs.emplace_back(vec2(100, 200), vec2(0), 200);
-    objs.emplace_back(vec2(700, 200), vec2(0), 100);
+    //objs.emplace_back(vec2(100, 200), vec2(0), 200);
+    // objs.emplace_back(vec2(700, 200), vec2(0), 100);
+    objs.emplace_back(vec2(700, 200), vec2(0), 40);
     for (size_t i = 0; i < 300; ++i) {
-        objs.emplace_back(vec2(200 + i * 21, 300), vec2(0), 20);
+        objs.emplace_back(vec2(200 + i * 21, 300), vec2(0), 10);
     }
 
     sf::Clock dt_clock;
@@ -75,8 +79,8 @@ int main() {
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
         for (auto& obj : objs) {
-            vec2 gravity = glm::normalize(target - obj.pos) * 0.001f;
-            obj.vel += gravity * obj.mass;
+            vec2 gravity = glm::normalize(target - obj.pos) * 50.f;
+            obj.vel += gravity / obj.mass;
             obj.apply_forces(dt);
         }
         for (auto& obj : objs) {
