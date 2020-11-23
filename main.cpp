@@ -21,7 +21,6 @@ public:
     vec2 vel;
     float radius;
     float mass;
-    vec2 acc;
 
     PhysicsObject(vec2 pos, vec2 vel, float radius)
         : pos(pos)
@@ -41,7 +40,6 @@ public:
 
     void apply_forces(float dt) {
         // show forces
-        vel += acc;
         pos += vel * dt;
     }
 
@@ -63,13 +61,14 @@ public:
         float b_diff = b_mass_of_total * combined_depth;
         vec2 a_change = direction_b_to_a * b_diff;
         vec2 b_change = direction_a_to_b * a_diff;
-        //b.pos += b_change;
-        //a.pos += a_change;
+        b.pos += b_change;
+        a.pos += a_change;
         // velocity resolution
         vec2 a_vel = glm::normalize(a.vel);
         float angle = glm::angle(direction_a_to_b, a_vel);
-        float angle_percent = angle / (M_PI / 2.0f);
-        if (glm::abs(angle_percent) < 1.0f) {
+        float angle_percent = fmodf(angle / (M_PI / 2.0f), 1.0f);
+        //if (glm::abs(angle_percent) < 1.0f) {
+        if (!glm::isnan(angle)) {
             std::cout << "before: angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
             vec2 d = direction_a_to_b * glm::length(a.vel);
             if (glm::abs(angle_percent) < 0.1) {
@@ -99,7 +98,7 @@ int main() {
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     objs.emplace_back(vec2(0, 300), vec2(100, 0), 10);
-    for (size_t i = 0; i < 40; ++i) {
+    for (size_t i = 0; i < 2; ++i) {
         objs.emplace_back(vec2(200 + i * 20, 300), vec2(0), 10);
     }
 
@@ -107,20 +106,30 @@ int main() {
     vec2 target = vec2(window.getSize().x, window.getSize().y) / 2.0f;
     sf::Font font;
     font.loadFromFile("font.ttf");
+    bool pause = false;
+    bool step = false;
+    bool g_enabled = false;
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
-        for (auto& obj : objs) {
-            vec2 gravity = glm::normalize(target - obj.pos) * 50.f;
-            //obj.acc = gravity / obj.mass;
-            for (auto& other_obj : objs) {
-                if (&obj == &other_obj) {
-                    continue;
+        if (!pause || step) {
+            for (auto& obj : objs) {
+                vec2 gravity = glm::normalize(target - obj.pos) * 10.f;
+                if (g_enabled) {
+                    obj.vel += gravity / obj.mass;
                 }
-                if (obj.collides_with(other_obj)) {
-                    PhysicsObject::resolve_collision(obj, other_obj);
+                for (auto& other_obj : objs) {
+                    if (&obj == &other_obj) {
+                        continue;
+                    }
+                    if (obj.collides_with(other_obj)) {
+                        PhysicsObject::resolve_collision(obj, other_obj);
+                    }
                 }
+                obj.apply_forces(dt);
             }
-            obj.apply_forces(dt);
+            if (step && !sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
+                step = false;
+            }
         }
         window.clear();
         for (const auto& obj : objs) {
@@ -148,10 +157,19 @@ int main() {
                 if (event.key.code == sf::Keyboard::Escape) {
                     window.close();
                 }
+                if (event.key.code == sf::Keyboard::Space) {
+                    pause = !pause;
+                }
+                if (pause && (event.key.code == sf::Keyboard::Right || event.key.code == sf::Keyboard::Up)) {
+                    step = true;
+                }
+                if (event.key.code == sf::Keyboard::G) {
+                    g_enabled = !g_enabled;
+                }
                 break;
             }
             case sf::Event::MouseMoved:
-                //target = vec2(event.mouseMove.x, event.mouseMove.y);
+                target = vec2(event.mouseMove.x, event.mouseMove.y);
                 break;
             default:
                 break;
