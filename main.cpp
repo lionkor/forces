@@ -3,10 +3,17 @@
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/vector_angle.hpp>
 #include <iostream>
 #include <random>
 
 using glm::vec2;
+
+sf::RenderWindow window(sf::VideoMode(1280, 720), "forces");
+
+std::ostream& operator<<(std::ostream& os, const vec2& v) {
+    return os << "(" << v.x << ", " << v.y << ")";
+}
 
 class PhysicsObject {
 public:
@@ -14,6 +21,7 @@ public:
     vec2 vel;
     float radius;
     float mass;
+    vec2 acc;
 
     PhysicsObject(vec2 pos, vec2 vel, float radius)
         : pos(pos)
@@ -32,6 +40,8 @@ public:
     }
 
     void apply_forces(float dt) {
+        // show forces
+        vel += acc;
         pos += vel * dt;
     }
 
@@ -53,37 +63,55 @@ public:
         float b_diff = b_mass_of_total * combined_depth;
         vec2 a_change = direction_b_to_a * b_diff;
         vec2 b_change = direction_a_to_b * a_diff;
-        b.pos += b_change;
-        a.pos += a_change;
-        a.vel = glm::reflect(a.vel, direction_b_to_a) * 0.01f + a.vel * 0.99f;
-        b.vel = glm::reflect(b.vel, direction_a_to_b) * 0.01f + b.vel * 0.99f;
+        //b.pos += b_change;
+        //a.pos += a_change;
+        // velocity resolution
+        vec2 a_vel = glm::normalize(a.vel);
+        float angle = glm::angle(direction_a_to_b, a_vel);
+        float angle_percent = angle / (M_PI / 2.0f);
+        if (glm::abs(angle_percent) < 1.0f) {
+            std::cout << "before: angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
+            vec2 d = direction_a_to_b * glm::length(a.vel);
+            if (glm::abs(angle_percent) < 0.1) {
+                b.vel += d;
+                a.vel *= 0;
+            } else {
+                b.vel += d * angle_percent;
+                a.vel -= d * angle_percent;
+                a.vel *= 1.0f - angle_percent;
+            }
+
+            std::cout << "after : angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
+        }
+        //a.vel = glm::reflect(a.vel, direction_b_to_a) * 0.01f + a.vel * 0.99f;
+        //b.vel = glm::reflect(b.vel, direction_a_to_b) * 0.01f + b.vel * 0.99f;
     }
 };
 
 int main() {
     srand(time(nullptr));
-    sf::RenderWindow window(sf::VideoMode(1280, 720), "forces");
 
     sf::Event event;
 
     std::vector<PhysicsObject> objs;
-    //objs.emplace_back(vec2(100, 200), vec2(0), 200);
-    // objs.emplace_back(vec2(700, 200), vec2(0), 100);
-    objs.emplace_back(vec2(700, 200), vec2(0), 40);
-    for (size_t i = 0; i < 300; ++i) {
-        objs.emplace_back(vec2(200 + i * 21, 300), vec2(0), 10);
+    //objs.emplace_back(vec2(100, 200), vec2(300, 0), 100);
+    //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
+    //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
+    //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
+    objs.emplace_back(vec2(0, 300), vec2(100, 0), 10);
+    for (size_t i = 0; i < 40; ++i) {
+        objs.emplace_back(vec2(200 + i * 20, 300), vec2(0), 10);
     }
 
     sf::Clock dt_clock;
     vec2 target = vec2(window.getSize().x, window.getSize().y) / 2.0f;
+    sf::Font font;
+    font.loadFromFile("font.ttf");
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
         for (auto& obj : objs) {
             vec2 gravity = glm::normalize(target - obj.pos) * 50.f;
-            obj.vel += gravity / obj.mass;
-            obj.apply_forces(dt);
-        }
-        for (auto& obj : objs) {
+            //obj.acc = gravity / obj.mass;
             for (auto& other_obj : objs) {
                 if (&obj == &other_obj) {
                     continue;
@@ -92,10 +120,22 @@ int main() {
                     PhysicsObject::resolve_collision(obj, other_obj);
                 }
             }
+            obj.apply_forces(dt);
         }
         window.clear();
         for (const auto& obj : objs) {
+            sf::VertexArray arr(sf::PrimitiveType::Lines);
+            arr.append(sf::Vertex(sf::Vector2f(obj.pos.x, obj.pos.y), sf::Color::Green));
+            vec2 p2 = obj.pos + (obj.vel);
+            arr.append(sf::Vertex(sf::Vector2f(p2.x, p2.y), sf::Color::Red));
+            sf::Text text(std::to_string(int(glm::length(obj.vel))), font);
+            vec2 mid = (obj.pos + p2) / 2.0f;
+            text.setPosition(mid.x, mid.y);
+            text.setFillColor(sf::Color::White);
+            text.setScale(0.3, 0.3);
             window.draw(obj.shape());
+            window.draw(arr);
+            window.draw(text);
         }
         window.display();
 
@@ -111,7 +151,7 @@ int main() {
                 break;
             }
             case sf::Event::MouseMoved:
-                target = vec2(event.mouseMove.x, event.mouseMove.y);
+                //target = vec2(event.mouseMove.x, event.mouseMove.y);
                 break;
             default:
                 break;
