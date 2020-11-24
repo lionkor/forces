@@ -16,7 +16,7 @@ std::ostream& operator<<(std::ostream& os, const vec2& v) {
     return os << "(" << v.x << ", " << v.y << ")";
 }
 
-#define EPS 0.0001
+#define EPS 0
 
 class PhysicsObject {
 public:
@@ -47,14 +47,27 @@ public:
         if (glm::length(vel) < EPS || glm::isnan(glm::length(vel))) {
             vel = vec2(0);
         }
+        vec2 next_pos = pos + vel * dt;
+        if (next_pos.x < 0) {
+            vel = glm::reflect(vel, vec2(1, 0));
+        }
+        if (next_pos.y < 0) {
+            vel = glm::reflect(vel, vec2(0, 1));
+        }
+        if (next_pos.x > window.mapPixelToCoords(sf::Vector2i(window.getSize())).x) {
+            vel = glm::reflect(vel, vec2(-1, 0));
+        }
+        if (next_pos.y > window.mapPixelToCoords(sf::Vector2i(window.getSize())).y) {
+            vel = glm::reflect(vel, vec2(0, -1));
+        }
         pos += vel * dt;
         old_vel = vel;
     }
 
     sf::CircleShape shape() const {
         auto s = sf::CircleShape(radius, 100);
-        s.setOrigin(radius, radius);
         s.setPosition(pos.x, pos.y);
+        s.setOrigin(radius, radius);
         return s;
     }
 
@@ -62,11 +75,15 @@ public:
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
         float combined_depth = a.depth_into(b);
-        a.pos += direction_b_to_a * combined_depth / 2.0f;
-        b.pos += direction_a_to_b * combined_depth / 2.0f;
+        while (combined_depth > 0.0001) {
+            a.pos += direction_b_to_a * combined_depth;
+            //b.pos += direction_a_to_b * combined_depth / 2.0f;
+            combined_depth = a.depth_into(b);
+        }
     }
 
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
+        resolve_position(a, b);
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
 
@@ -87,19 +104,18 @@ public:
         vec2 new_b_vel = b.old_vel;
         float a_len = glm::length(a.old_vel);
         float b_len = glm::length(b.old_vel);
-        if (a_transfers_velocity && !glm::isnan(a_len) && a_len > FLT_EPSILON) {
+        if (a_transfers_velocity && !glm::isnan(a_len) && a_len > 0) {
             new_b_vel += glm::normalize(direction_a_to_b) * a_transfer_percent * glm::length(new_a_vel);
             new_a_vel = glm::reflect(new_a_vel * (1.0f - a_transfer_percent), a_reflection_normal);
             //new_a_vel -= glm::normalize(b_reflected_vel) * a_transfer_percent;
         }
-        if (b_transfers_velocity && !glm::isnan(b_len) && b_len > FLT_EPSILON) {
+        if (b_transfers_velocity && !glm::isnan(b_len) && b_len > 0) {
             new_a_vel += glm::normalize(direction_b_to_a) * b_transfer_percent * glm::length(new_b_vel);
             new_b_vel = glm::reflect(new_b_vel * (1.0f - b_transfer_percent), b_reflection_normal);
             //new_b_vel -= glm::normalize(a_reflected_vel) * b_transfer_percent;
         }
         a.vel = new_a_vel;
         b.vel = new_b_vel;
-        resolve_position(a, b);
 
         /*float combined_mass = a.mass + b.mass;
         float combined_depth = a.depth_into(b);
@@ -158,9 +174,9 @@ int main() {
     //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
-    objs.emplace_back(vec2(0, 300), vec2(100, 0), 10);
-    for (size_t i = 0; i < 3; ++i) {
-        objs.emplace_back(vec2(300 + i * 22, 310), vec2(0, 0), 10);
+    objs.emplace_back(vec2(0, 300), vec2(300, 0), 10);
+    for (size_t i = 0; i < 30; ++i) {
+        objs.emplace_back(vec2(300 + i * 20, 300), vec2(0, 0), 10);
     }
 
     sf::Clock dt_clock;
@@ -170,6 +186,7 @@ int main() {
     bool pause = false;
     bool step = false;
     bool g_enabled = false;
+    bool show_forces = false;
     auto make_status_text = [&]() -> sf::Text {
         sf::Text status;
         status.setFont(font);
@@ -184,6 +201,7 @@ int main() {
         }
         std::stringstream ss;
         ss << "pause: " << (pause ? "YES" : "NO") << "\n"
+           << "show forces: " << (show_forces ? "ON" : "OFF") << "\n"
            << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n"
            << "sum of all forces: " << forces_sum << "\n";
         status.setString(ss.str());
@@ -229,7 +247,9 @@ int main() {
         window.clear();
         for (const auto& obj : objs) {
             window.draw(obj.shape());
-            draw_force(obj.pos, obj.vel);
+            if (show_forces) {
+                draw_force(obj.pos, obj.vel);
+            }
         }
         window.draw(make_status_text());
         window.display();
@@ -255,6 +275,9 @@ int main() {
                 if (event.key.code == sf::Keyboard::A) {
                     auto real_pos = window.mapPixelToCoords(sf::Mouse::getPosition());
                     objs.emplace_back(vec2(real_pos.x, real_pos.y), vec2(0), 10);
+                }
+                if (event.key.code == sf::Keyboard::F) {
+                    show_forces = !show_forces;
                 }
                 break;
             }
