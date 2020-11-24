@@ -42,7 +42,9 @@ public:
 
     void apply_forces(float dt) {
         // show forces
+        vel += acc;
         pos += vel * dt;
+        acc = vec2(0);
     }
 
     sf::CircleShape shape() const {
@@ -55,6 +57,10 @@ public:
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
+        float combined_depth = a.depth_into(b);
+        a.pos += direction_b_to_a * combined_depth / 2.0f;
+        b.pos += direction_a_to_b * combined_depth / 2.0f;
+
         /*float combined_mass = a.mass + b.mass;
         float combined_depth = a.depth_into(b);
         float a_mass_of_total = a.mass / combined_mass;
@@ -196,9 +202,11 @@ int main() {
                 }
                 break;
             }
-            case sf::Event::MouseMoved:
-                target = vec2(event.mouseMove.x, event.mouseMove.y);
+            case sf::Event::MouseMoved: {
+                auto real_vec = window.mapPixelToCoords(sf::Vector2i(event.mouseMove.x, event.mouseMove.y));
+                target = vec2(real_vec.x, real_vec.y);
                 break;
+            }
             default:
                 break;
             }
