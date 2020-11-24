@@ -6,6 +6,7 @@
 #include <glm/gtx/vector_angle.hpp>
 #include <iostream>
 #include <random>
+#include <sstream>
 
 using glm::vec2;
 
@@ -21,6 +22,7 @@ public:
     vec2 vel;
     float radius;
     float mass;
+    vec2 acc { 0 };
 
     PhysicsObject(vec2 pos, vec2 vel, float radius)
         : pos(pos)
@@ -53,7 +55,7 @@ public:
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
-        float combined_mass = a.mass + b.mass;
+        /*float combined_mass = a.mass + b.mass;
         float combined_depth = a.depth_into(b);
         float a_mass_of_total = a.mass / combined_mass;
         float b_mass_of_total = b.mass / combined_mass;
@@ -81,7 +83,7 @@ public:
             //} else {
             //}
 
-            /*
+            /
             vec2 d = direction_a_to_b * glm::length(a.vel);
             if (glm::abs(angle_percent) < 0.1) {
                 b.vel += d;
@@ -90,12 +92,13 @@ public:
                 b.vel += d * angle_percent;
                 a.vel -= d * angle_percent;
                 a.vel *= 1.0f - angle_percent;
-            }*/
+            }/
 
             std::cout << "after : angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
         }
         //a.vel = glm::reflect(a.vel, direction_b_to_a) * 0.01f + a.vel * 0.99f;
         //b.vel = glm::reflect(b.vel, direction_a_to_b) * 0.01f + b.vel * 0.99f;
+    */
     }
 };
 
@@ -121,13 +124,25 @@ int main() {
     bool pause = false;
     bool step = false;
     bool g_enabled = false;
+    auto make_status_text = [&]() -> sf::Text {
+        sf::Text status;
+        status.setFont(font);
+        status.setPosition(5, 5);
+        std::stringstream ss;
+        ss << "pause: " << (pause ? "YES" : "NO") << "\n"
+           << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n";
+        status.setString(ss.str());
+        status.setFillColor(sf::Color::White);
+        status.setScale(0.8, 0.8);
+        return status;
+    };
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
         if (!pause || step) {
             for (auto& obj : objs) {
                 vec2 gravity = glm::normalize(target - obj.pos) * 10.f;
                 if (g_enabled) {
-                    obj.vel += gravity / obj.mass;
+                    obj.acc += gravity / obj.mass;
                 }
                 for (auto& other_obj : objs) {
                     if (&obj == &other_obj) {
@@ -158,6 +173,7 @@ int main() {
             window.draw(arr);
             window.draw(text);
         }
+        window.draw(make_status_text());
         window.display();
 
         while (window.pollEvent(event)) {
