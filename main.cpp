@@ -61,6 +61,29 @@ public:
         a.pos += direction_b_to_a * combined_depth / 2.0f;
         b.pos += direction_a_to_b * combined_depth / 2.0f;
 
+        vec2 a_reflection_normal = direction_b_to_a;
+        vec2 b_reflection_normal = direction_a_to_b;
+
+        float a_angle_vel_dir = glm::angle(glm::normalize(a.vel), direction_a_to_b);
+        float b_angle_vel_dir = glm::angle(glm::normalize(b.vel), direction_b_to_a);
+        bool a_transfers_velocity = a_angle_vel_dir < glm::radians(90.0f);
+        bool b_transfers_velocity = b_angle_vel_dir < glm::radians(90.0f);
+        float a_transfer_percent = 1.0f - a_angle_vel_dir / glm::radians(90.0f);
+        float b_transfer_percent = 1.0f - b_angle_vel_dir / glm::radians(90.0f);
+
+        vec2 new_a_vel = a.vel;
+        vec2 new_b_vel = b.vel;
+        if (a_transfers_velocity) {
+            new_b_vel += a.vel * a_transfer_percent;
+            new_a_vel -= a.vel * a_transfer_percent;
+        }
+        if (b_transfers_velocity) {
+            new_a_vel += b.vel * b_transfer_percent;
+            new_b_vel -= b.vel * b_transfer_percent;
+        }
+        a.vel = new_a_vel;
+        b.vel = new_b_vel;
+
         /*float combined_mass = a.mass + b.mass;
         float combined_depth = a.depth_into(b);
         float a_mass_of_total = a.mass / combined_mass;
@@ -120,7 +143,7 @@ int main() {
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     objs.emplace_back(vec2(0, 300), vec2(100, 0), 10);
     for (size_t i = 0; i < 1; ++i) {
-        objs.emplace_back(vec2(200 + i * 20, 310), vec2(0), 10);
+        objs.emplace_back(vec2(300 + i * 20, 310), vec2(-100, 0), 10);
     }
 
     sf::Clock dt_clock;
@@ -141,6 +164,19 @@ int main() {
         status.setFillColor(sf::Color::White);
         status.setScale(0.8, 0.8);
         return status;
+    };
+    auto draw_force = [&](const vec2& pos, const vec2& force) {
+        sf::VertexArray arr(sf::PrimitiveType::Lines);
+        arr.append(sf::Vertex(sf::Vector2f(pos.x, pos.y), sf::Color::Green));
+        vec2 p2 = pos + force;
+        arr.append(sf::Vertex(sf::Vector2f(p2.x, p2.y), sf::Color::Red));
+        sf::Text text(std::to_string(int(glm::length(force))), font);
+        vec2 mid = (pos + p2) / 2.0f;
+        text.setPosition(mid.x, mid.y);
+        text.setFillColor(sf::Color::White);
+        text.setScale(0.3, 0.3);
+        window.draw(arr);
+        window.draw(text);
     };
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
@@ -166,18 +202,8 @@ int main() {
         }
         window.clear();
         for (const auto& obj : objs) {
-            sf::VertexArray arr(sf::PrimitiveType::Lines);
-            arr.append(sf::Vertex(sf::Vector2f(obj.pos.x, obj.pos.y), sf::Color::Green));
-            vec2 p2 = obj.pos + (obj.vel);
-            arr.append(sf::Vertex(sf::Vector2f(p2.x, p2.y), sf::Color::Red));
-            sf::Text text(std::to_string(int(glm::length(obj.vel))), font);
-            vec2 mid = (obj.pos + p2) / 2.0f;
-            text.setPosition(mid.x, mid.y);
-            text.setFillColor(sf::Color::White);
-            text.setScale(0.3, 0.3);
             window.draw(obj.shape());
-            window.draw(arr);
-            window.draw(text);
+            draw_force(obj.pos, obj.vel);
         }
         window.draw(make_status_text());
         window.display();
