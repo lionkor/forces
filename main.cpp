@@ -61,8 +61,8 @@ public:
         float b_diff = b_mass_of_total * combined_depth;
         vec2 a_change = direction_b_to_a * b_diff;
         vec2 b_change = direction_a_to_b * a_diff;
-        b.pos += b_change;
-        a.pos += a_change;
+        b.pos += b_change - 0.0001f;
+        a.pos += a_change - 0.0001f;
         // velocity resolution
         vec2 a_vel = glm::normalize(a.vel);
         float angle = glm::angle(direction_a_to_b, a_vel);
@@ -70,6 +70,18 @@ public:
         //if (glm::abs(angle_percent) < 1.0f) {
         if (!glm::isnan(angle)) {
             std::cout << "before: angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
+
+
+            vec2 a_mock_vel = direction_a_to_b * glm::length(a.vel) * angle_percent;
+            vec2 b_mock_vel = direction_a_to_b * glm::length(a.vel) * (1.0f - angle_percent);
+
+            //if (glm::abs(angle) < 0.001) {
+                a.vel = a_mock_vel;
+                b.vel += b_mock_vel;
+            //} else {
+            //}
+
+            /*
             vec2 d = direction_a_to_b * glm::length(a.vel);
             if (glm::abs(angle_percent) < 0.1) {
                 b.vel += d;
@@ -78,7 +90,7 @@ public:
                 b.vel += d * angle_percent;
                 a.vel -= d * angle_percent;
                 a.vel *= 1.0f - angle_percent;
-            }
+            }*/
 
             std::cout << "after : angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
         }
@@ -98,8 +110,8 @@ int main() {
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     objs.emplace_back(vec2(0, 300), vec2(100, 0), 10);
-    for (size_t i = 0; i < 2; ++i) {
-        objs.emplace_back(vec2(200 + i * 20, 300), vec2(0), 10);
+    for (size_t i = 0; i < 1; ++i) {
+        objs.emplace_back(vec2(200 + i * 20, 310), vec2(0), 10);
     }
 
     sf::Clock dt_clock;
