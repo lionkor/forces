@@ -87,86 +87,29 @@ public:
         vec2 a_reflection_normal = direction_b_to_a;
         vec2 b_reflection_normal = direction_a_to_b;
 
-        vec2 a_reflected_vel = glm::reflect(a.old_vel, a_reflection_normal);
-        vec2 b_reflected_vel = glm::reflect(b.old_vel, b_reflection_normal);
+        float a_angle = glm::angle(a.old_vel, a_reflection_normal);
+        bool a_transfers = a_angle > M_PI / 2.0f;
 
-        float a_angle_vel_dir = glm::angle(glm::normalize(a.old_vel), direction_a_to_b);
-        float b_angle_vel_dir = glm::angle(glm::normalize(b.old_vel), direction_b_to_a);
-        bool a_transfers_velocity = a_angle_vel_dir < glm::radians(90.0f);
-        bool b_transfers_velocity = b_angle_vel_dir < glm::radians(90.0f);
-        float a_transfer_percent = 1.0f - a_angle_vel_dir / glm::radians(90.0f);
-        float b_transfer_percent = 1.0f - b_angle_vel_dir / glm::radians(90.0f);
+        float b_angle = glm::angle(b.old_vel, b_reflection_normal);
+        bool b_transfers = b_angle > M_PI / 2.0f;
 
-        vec2 new_a_vel = a.old_vel;
-        vec2 new_b_vel = b.old_vel;
-        float a_len = glm::length(a.old_vel);
-        float b_len = glm::length(b.old_vel);
-        //new_a_vel = a.old_vel * (1.0f - a_transfer_percent);
-        //new_b_vel = b.old_vel * (1.0f - b_transfer_percent);
-        if (!glm::isnan(glm::length(new_a_vel))) {
+        if (a_transfers || b_transfers) {
+            a.vel = vec2(0);
+            b.vel = vec2(0);
+        }
+        if (a_transfers) {
             std::cout << "a" << std::endl;
-            vec2 change = direction_a_to_b * glm::length(a.old_vel);
-            new_b_vel += change * a_transfer_percent;
-            new_a_vel *= 1.0f - a_transfer_percent;
-            new_a_vel -= change * a_transfer_percent;
-        } else if (!glm::isnan(glm::length(new_b_vel))) {
-            std::cout << "b" << std::endl;
-            vec2 change = direction_b_to_a * glm::length(b.old_vel);
-            new_a_vel += change * b_transfer_percent;
-            new_b_vel *= 1.0f - b_transfer_percent;
-            new_b_vel -= change * b_transfer_percent;
+            float a_transfer_percent = 1.0f - (a_angle / glm::radians(180.f) - 0.5f);
+            b.vel += a.old_vel * a_transfer_percent;;
+            a.vel += glm::reflect(a.old_vel * (1.0f - a_transfer_percent), a_reflection_normal);
         }
-
-        std::cout << "a: before: " << glm::length(a.old_vel) << " after: " << glm::length(new_a_vel) << std::endl;
-        std::cout << "b: before: " << glm::length(b.old_vel) << " after: " << glm::length(new_b_vel) << std::endl;
-        std::cout << "total before: " << glm::length(a.old_vel) + glm::length(b.old_vel) << " after: " << glm::length(new_a_vel) + glm::length(new_b_vel) << std::endl;
-        a.vel = new_a_vel;
-        b.vel = new_b_vel;
-
-        /*float combined_mass = a.mass + b.mass;
-        float combined_depth = a.depth_into(b);
-        float a_mass_of_total = a.mass / combined_mass;
-        float b_mass_of_total = b.mass / combined_mass;
-        float a_diff = a_mass_of_total * combined_depth;
-        float b_diff = b_mass_of_total * combined_depth;
-        vec2 a_change = direction_b_to_a * b_diff;
-        vec2 b_change = direction_a_to_b * a_diff;
-        b.pos += b_change - 0.0001f;
-        a.pos += a_change - 0.0001f;
-        // velocity resolution
-        vec2 a_vel = glm::normalize(a.vel);
-        float angle = glm::angle(direction_a_to_b, a_vel);
-        float angle_percent = fmodf(angle / (M_PI / 2.0f), 1.0f);
-        //if (glm::abs(angle_percent) < 1.0f) {
-        if (!glm::isnan(angle)) {
-            std::cout << "before: angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
-
-
-            vec2 a_mock_vel = direction_a_to_b * glm::length(a.vel) * angle_percent;
-            vec2 b_mock_vel = direction_a_to_b * glm::length(a.vel) * (1.0f - angle_percent);
-
-            //if (glm::abs(angle) < 0.001) {
-                a.vel = a_mock_vel;
-                b.vel += b_mock_vel;
-            //} else {
-            //}
-
-            /
-            vec2 d = direction_a_to_b * glm::length(a.vel);
-            if (glm::abs(angle_percent) < 0.1) {
-                b.vel += d;
-                a.vel *= 0;
-            } else {
-                b.vel += d * angle_percent;
-                a.vel -= d * angle_percent;
-                a.vel *= 1.0f - angle_percent;
-            }/
-
-            std::cout << "after : angle_percent: " << int(angle_percent * 100.0f) << ", angle: " << angle / M_PI << "*pi, a.vel: " << a.vel << ", b.vel: " << b.vel << std::endl;
+        if (b_transfers) {
+            std::cout << "a" << std::endl;
+            float b_transfer_percent = 1.0f - (b_angle / glm::radians(180.f) - 0.5f);
+            vec2 change = b.old_vel * b_transfer_percent;
+            a.vel += change;
+            b.vel += glm::reflect(b.old_vel * (1.0f - b_transfer_percent), b_reflection_normal);
         }
-        //a.vel = glm::reflect(a.vel, direction_b_to_a) * 0.01f + a.vel * 0.99f;
-        //b.vel = glm::reflect(b.vel, direction_a_to_b) * 0.01f + b.vel * 0.99f;
-    */
     }
 };
 
@@ -182,7 +125,7 @@ int main() {
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     for (size_t i = 0; i < 5; ++i) {
         objs.emplace_back(vec2(0, 100 + 100 * i), vec2(300, 0), 10);
-        objs.emplace_back(vec2(800, 100 + 100 * i + 1), vec2(0, 0), 10);
+        objs.emplace_back(vec2(800, 100 + 100 * i), vec2(0, 0), 10);
     }
 
     sf::Clock dt_clock;
@@ -209,7 +152,7 @@ int main() {
         ss << "pause: " << (pause ? "YES" : "NO") << "\n"
            << "show forces: " << (show_forces ? "ON" : "OFF") << "\n"
            << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n"
-           << "sum of all forces: " << forces_sum << "\n";
+           << "avg of all forces: " << forces_sum / objs.size() << "\n";
         status.setString(ss.str());
         status.setFillColor(sf::Color::White);
         status.setScale(0.8, 0.8);
