@@ -35,7 +35,7 @@ public:
 
     bool collides_with(const PhysicsObject& other) const {
         // if the actual distance is less than the two radii together, they are colliding
-        return glm::distance(pos, other.pos) < radius + other.radius;
+        return glm::distance(pos, other.pos) + 0.01 < radius + other.radius;
     }
     float depth_into(const PhysicsObject& other) const {
         // difference between expected distance and actual distance, is negative if no collision
@@ -75,11 +75,8 @@ public:
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
         float combined_depth = a.depth_into(b);
-        while (combined_depth > 0.0001) {
-            a.pos += direction_b_to_a * combined_depth;
-            //b.pos += direction_a_to_b * combined_depth / 2.0f;
-            combined_depth = a.depth_into(b);
-        }
+        a.pos += direction_b_to_a * (combined_depth / 2.f + FLT_EPSILON);
+        b.pos += direction_a_to_b * (combined_depth / 2.f + FLT_EPSILON);
     }
 
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
@@ -104,16 +101,25 @@ public:
         vec2 new_b_vel = b.old_vel;
         float a_len = glm::length(a.old_vel);
         float b_len = glm::length(b.old_vel);
-        if (a_transfers_velocity && !glm::isnan(a_len) && a_len > 0) {
-            new_b_vel += glm::normalize(direction_a_to_b) * a_transfer_percent * glm::length(new_a_vel);
-            new_a_vel = glm::reflect(new_a_vel * (1.0f - a_transfer_percent), a_reflection_normal);
-            //new_a_vel -= glm::normalize(b_reflected_vel) * a_transfer_percent;
+        //new_a_vel = a.old_vel * (1.0f - a_transfer_percent);
+        //new_b_vel = b.old_vel * (1.0f - b_transfer_percent);
+        if (!glm::isnan(glm::length(new_a_vel))) {
+            std::cout << "a" << std::endl;
+            vec2 change = direction_a_to_b * glm::length(a.old_vel);
+            new_b_vel += change * a_transfer_percent;
+            new_a_vel *= 1.0f - a_transfer_percent;
+            new_a_vel -= change * a_transfer_percent;
+        } else if (!glm::isnan(glm::length(new_b_vel))) {
+            std::cout << "b" << std::endl;
+            vec2 change = direction_b_to_a * glm::length(b.old_vel);
+            new_a_vel += change * b_transfer_percent;
+            new_b_vel *= 1.0f - b_transfer_percent;
+            new_b_vel -= change * b_transfer_percent;
         }
-        if (b_transfers_velocity && !glm::isnan(b_len) && b_len > 0) {
-            new_a_vel += glm::normalize(direction_b_to_a) * b_transfer_percent * glm::length(new_b_vel);
-            new_b_vel = glm::reflect(new_b_vel * (1.0f - b_transfer_percent), b_reflection_normal);
-            //new_b_vel -= glm::normalize(a_reflected_vel) * b_transfer_percent;
-        }
+
+        std::cout << "a: before: " << glm::length(a.old_vel) << " after: " << glm::length(new_a_vel) << std::endl;
+        std::cout << "b: before: " << glm::length(b.old_vel) << " after: " << glm::length(new_b_vel) << std::endl;
+        std::cout << "total before: " << glm::length(a.old_vel) + glm::length(b.old_vel) << " after: " << glm::length(new_a_vel) + glm::length(new_b_vel) << std::endl;
         a.vel = new_a_vel;
         b.vel = new_b_vel;
 
@@ -174,9 +180,9 @@ int main() {
     //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
-    objs.emplace_back(vec2(0, 300), vec2(300, 0), 10);
-    for (size_t i = 0; i < 30; ++i) {
-        objs.emplace_back(vec2(300 + i * 20, 300), vec2(0, 0), 10);
+    for (size_t i = 0; i < 5; ++i) {
+        objs.emplace_back(vec2(0, 100 + 100 * i), vec2(300, 0), 10);
+        objs.emplace_back(vec2(800, 100 + 100 * i + 1), vec2(0, 0), 10);
     }
 
     sf::Clock dt_clock;
@@ -225,20 +231,25 @@ int main() {
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
         if (!pause || step) {
-            for (auto& obj : objs) {
-                vec2 gravity = glm::normalize(target - obj.pos) * 1.f;
-                if (g_enabled) {
-                    obj.vel += gravity / obj.mass;
-                }
-                for (auto& other_obj : objs) {
-                    if (&obj == &other_obj) {
-                        continue;
+            const size_t n = 1;
+            for (size_t i = 0; i < n; ++i) {
+                for (auto& obj : objs) {
+                    if (g_enabled) {
+                        vec2 gravity = glm::normalize(target - obj.pos) * 1.f;
+                        obj.vel += gravity / obj.mass;
                     }
-                    if (obj.collides_with(other_obj)) {
-                        PhysicsObject::resolve_collision(obj, other_obj);
+                    for (auto& other_obj : objs) {
+                        if (&obj == &other_obj) {
+                            continue;
+                        }
+                        if (obj.collides_with(other_obj)) {
+                            PhysicsObject::resolve_collision(obj, other_obj);
+                        }
                     }
                 }
-                obj.apply_forces(dt);
+                for (auto& obj : objs) {
+                    obj.apply_forces(dt / float(n));
+                }
             }
             if (step && !sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
                 step = false;
