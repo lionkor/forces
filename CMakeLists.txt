@@ -4,6 +4,8 @@ add_subdirectory(sfml)
 
 project(forces)
 
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
 add_executable(forces main.cpp)
 
 target_include_directories(forces SYSTEM PRIVATE sfml/include)

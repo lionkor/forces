@@ -100,14 +100,13 @@ public:
         if (a_transfers) {
             std::cout << "a" << std::endl;
             float a_transfer_percent = 1.0f - (a_angle / glm::radians(180.f) - 0.5f);
-            b.vel += a.old_vel * a_transfer_percent;;
+            b.vel -= glm::reflect(a.old_vel * a_transfer_percent, a_reflection_normal);
             a.vel += glm::reflect(a.old_vel * (1.0f - a_transfer_percent), a_reflection_normal);
         }
         if (b_transfers) {
             std::cout << "a" << std::endl;
             float b_transfer_percent = 1.0f - (b_angle / glm::radians(180.f) - 0.5f);
-            vec2 change = b.old_vel * b_transfer_percent;
-            a.vel += change;
+            a.vel -= glm::reflect(b.old_vel * b_transfer_percent, b_reflection_normal);
             b.vel += glm::reflect(b.old_vel * (1.0f - b_transfer_percent), b_reflection_normal);
         }
     }
@@ -125,7 +124,7 @@ int main() {
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     for (size_t i = 0; i < 5; ++i) {
         objs.emplace_back(vec2(0, 100 + 100 * i), vec2(300, 0), 10);
-        objs.emplace_back(vec2(800, 100 + 100 * i), vec2(0, 0), 10);
+        objs.emplace_back(vec2(800, 100 + 100 * i + i), vec2(0, 0), 10);
     }
 
     sf::Clock dt_clock;
@@ -136,6 +135,7 @@ int main() {
     bool step = false;
     bool g_enabled = false;
     bool show_forces = false;
+    float last_dt;
     auto make_status_text = [&]() -> sf::Text {
         sf::Text status;
         status.setFont(font);
@@ -152,7 +152,9 @@ int main() {
         ss << "pause: " << (pause ? "YES" : "NO") << "\n"
            << "show forces: " << (show_forces ? "ON" : "OFF") << "\n"
            << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n"
-           << "avg of all forces: " << forces_sum / objs.size() << "\n";
+           << "sum of all forces: " << forces_sum << "\n"
+           << "avg of all forces: " << forces_sum / objs.size() << "\n"
+           << "last dt: " << last_dt << "\n";
         status.setString(ss.str());
         status.setFillColor(sf::Color::White);
         status.setScale(0.8, 0.8);
@@ -173,12 +175,13 @@ int main() {
     };
     while (window.isOpen()) {
         float dt = dt_clock.restart().asSeconds();
+        last_dt = dt;
         if (!pause || step) {
             const size_t n = 1;
             for (size_t i = 0; i < n; ++i) {
                 for (auto& obj : objs) {
                     if (g_enabled) {
-                        vec2 gravity = glm::normalize(target - obj.pos) * 1.f;
+                        vec2 gravity = glm::normalize(target - obj.pos) * 5.f;
                         obj.vel += gravity / obj.mass;
                     }
                     for (auto& other_obj : objs) {
