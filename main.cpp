@@ -1,12 +1,12 @@
 #include <SFML/Graphics.hpp>
 #include <ctime>
+#include <fstream>
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/vector_angle.hpp>
 #include <iostream>
 #include <random>
-#include <fstream>
 #include <sstream>
 
 using glm::vec2;
@@ -30,7 +30,7 @@ public:
         : pos(pos)
         , vel(vel)
         , radius(radius)
-        , mass(radius) { }
+        , mass(M_PI * radius * radius) { }
     virtual ~PhysicsObject() { }
 
     bool collides_with(const PhysicsObject& other) {
@@ -74,8 +74,10 @@ public:
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
         float combined_depth = a.depth_into(b);
-        a.pos += direction_b_to_a * (combined_depth / 2.f + FLT_EPSILON);
-        b.pos += direction_a_to_b * (combined_depth / 2.f + FLT_EPSILON);
+        if (combined_depth < a.radius + b.radius - 0.1) {
+            a.pos += direction_b_to_a * (combined_depth / 2.f + FLT_EPSILON);
+            b.pos += direction_a_to_b * (combined_depth / 2.f + FLT_EPSILON);
+        }
     }
 
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
@@ -118,6 +120,13 @@ public:
     }
 };
 
+float flt_epsilon(float x) {
+    int exp;
+    if (frexp(x, &exp) == 0.0)
+        return FLT_MIN;
+    return ldexp(FLT_EPSILON, exp - 1);
+}
+
 int main() {
     srand(time(nullptr));
 
@@ -128,9 +137,8 @@ int main() {
     //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
-    for (size_t i = 0; i < 2; ++i) {
-        objs.emplace_back(vec2(0, 100 + 50 * i), vec2(300, 0), 10);
-        objs.emplace_back(vec2(800, 100 + 50 * i + i), vec2(-30, 0), 10);
+    for (size_t i = 0; i < 10; ++i) {
+        objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 100) - 50, (rand() % 100) - 50), rand() % 100);
     }
 
     //std::ofstream logfile("averages.csv", std::ios::out);
@@ -149,23 +157,23 @@ int main() {
         status.setFont(font);
         status.setPosition(5, 5);
         // sum all forces
-        float forces_sum = 0;
+        float p_sum = 0;
+        float KE_sum = 0;
+        float KE_eps_sum = 0;
         for (const auto& obj : objs) {
             float len = glm::length(obj.vel);
-            if (!glm::isnan(len)) {
-                forces_sum += len;
-            }
+            p_sum += len * obj.mass;
+            KE_sum += 0.5f * obj.mass * (len * len);
         }
         std::stringstream ss;
         ss << "pause: " << (pause ? "YES" : "NO") << "\n"
            << "show forces: " << (show_forces ? "ON" : "OFF") << "\n"
            << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n"
-           << "sum of all forces: " << forces_sum << "\n"
-           << "avg of all forces: " << forces_sum / objs.size() << "\n"
+           << "system's KE = " << int(KE_sum) << " (+-" << flt_epsilon(KE_sum) << ")\n"
            << "frame time (ms): " << last_dt * 1000.0f << "\n";
         //logfile << forces_sum / objs.size() << ",";
         status.setString(ss.str());
-        status.setFillColor(sf::Color::White);
+        status.setFillColor(sf::Color::Red);
         status.setScale(0.8, 0.8);
         return status;
     };
@@ -186,7 +194,7 @@ int main() {
         float dt = dt_clock.restart().asSeconds();
         last_dt = dt;
         if (!pause || step) {
-            const size_t n = 1;
+            const size_t n = 100;
             for (size_t i = 0; i < n; ++i) {
                 for (auto& obj : objs) {
                     if (g_enabled) {
