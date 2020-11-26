@@ -6,6 +6,7 @@
 #include <glm/gtx/vector_angle.hpp>
 #include <iostream>
 #include <random>
+#include <fstream>
 #include <sstream>
 
 using glm::vec2;
@@ -24,7 +25,6 @@ public:
     vec2 vel;
     float radius;
     float mass;
-    vec2 old_vel;
 
     PhysicsObject(vec2 pos, vec2 vel, float radius)
         : pos(pos)
@@ -33,7 +33,7 @@ public:
         , mass(radius) { }
     virtual ~PhysicsObject() { }
 
-    bool collides_with(const PhysicsObject& other) const {
+    bool collides_with(const PhysicsObject& other) {
         // if the actual distance is less than the two radii together, they are colliding
         return glm::distance(pos, other.pos) + 0.01 < radius + other.radius;
     }
@@ -44,7 +44,7 @@ public:
 
     void apply_forces(float dt) {
         // show forces
-        if (glm::length(vel) < EPS || glm::isnan(glm::length(vel))) {
+        if (glm::length(vel) < EPS || glm::isnan(glm::length(vel)) || glm::isinf(glm::length(vel))) {
             vel = vec2(0);
         }
         vec2 next_pos = pos + vel * dt;
@@ -61,7 +61,6 @@ public:
             vel = glm::reflect(vel, vec2(0, -1));
         }
         pos += vel * dt;
-        old_vel = vel;
     }
 
     sf::CircleShape shape() const {
@@ -81,34 +80,41 @@ public:
 
     static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
         resolve_position(a, b);
-        vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
-        vec2 direction_b_to_a = -direction_a_to_b;
-
-        vec2 a_reflection_normal = direction_b_to_a;
-        vec2 b_reflection_normal = direction_a_to_b;
-
-        float a_angle = glm::angle(a.old_vel, a_reflection_normal);
-        bool a_transfers = a_angle > M_PI / 2.0f;
-
-        float b_angle = glm::angle(b.old_vel, b_reflection_normal);
-        bool b_transfers = b_angle > M_PI / 2.0f;
-
-        if (a_transfers || b_transfers) {
-            a.vel = vec2(0);
-            b.vel = vec2(0);
-        }
-        if (a_transfers) {
-            std::cout << "a" << std::endl;
-            float a_transfer_percent = 1.0f - (a_angle / glm::radians(180.f) - 0.5f);
-            b.vel -= glm::reflect(a.old_vel * a_transfer_percent, a_reflection_normal);
-            a.vel += glm::reflect(a.old_vel * (1.0f - a_transfer_percent), a_reflection_normal);
-        }
-        if (b_transfers) {
-            std::cout << "a" << std::endl;
-            float b_transfer_percent = 1.0f - (b_angle / glm::radians(180.f) - 0.5f);
-            a.vel -= glm::reflect(b.old_vel * b_transfer_percent, b_reflection_normal);
-            b.vel += glm::reflect(b.old_vel * (1.0f - b_transfer_percent), b_reflection_normal);
-        }
+        // aliases to make formulas look like common elastic collision formulas
+        // which makes cross checking them for mistakes easier
+        vec2 p1 = a.pos;
+        vec2 p2 = b.pos;
+        vec2 v1 = a.vel;
+        vec2 v2 = b.vel;
+        float m1 = a.mass;
+        float m2 = b.mass;
+        vec2 vp1p2 = p2 - p1;
+        // normal vector
+        vec2 vn = glm::normalize(vp1p2);
+        // normal tangent vector
+        vec2 vt = vec2(-vn.y, vn.x);
+        // v1 projected onto vn
+        float v1n = glm::dot(v1, vn);
+        // v1 projected onto vt
+        float v1t = glm::dot(v1, vt);
+        // v2 projected onto vn
+        float v2n = glm::dot(v2, vn);
+        // v2 projected onto vt
+        float v2t = glm::dot(v2, vt);
+        // v1t and v2t stay unchanged, so we just alias them
+        float v1t_p = v1t;
+        float v2t_p = v2t;
+        // one-dimensional collision formula
+        float v1n_p = (v1n * (m1 - m2) + 2.0f * m2 * v2n) / (m1 + m2);
+        float v2n_p = (v2n * (m2 - m1) + 2.0f * m1 * v1n) / (m1 + m2);
+        // slap the scalars back in vectors
+        vec2 v1n_vec = v1n_p * vn;
+        vec2 v2n_vec = v2n_p * vn;
+        vec2 v1t_vec = v1t_p * vt;
+        vec2 v2t_vec = v2t_p * vt;
+        // set final velocities (these are actually v1' and v2')
+        a.vel = v1n_vec + v1t_vec;
+        b.vel = v2n_vec + v2t_vec;
     }
 };
 
@@ -122,10 +128,12 @@ int main() {
     //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
-    for (size_t i = 0; i < 5; ++i) {
-        objs.emplace_back(vec2(0, 100 + 100 * i), vec2(300, 0), 10);
-        objs.emplace_back(vec2(800, 100 + 100 * i + i), vec2(0, 0), 10);
+    for (size_t i = 0; i < 2; ++i) {
+        objs.emplace_back(vec2(0, 100 + 50 * i), vec2(300, 0), 10);
+        objs.emplace_back(vec2(800, 100 + 50 * i + i), vec2(-30, 0), 10);
     }
+
+    //std::ofstream logfile("averages.csv", std::ios::out);
 
     sf::Clock dt_clock;
     vec2 target = vec2(window.getSize().x, window.getSize().y) / 2.0f;
@@ -154,7 +162,8 @@ int main() {
            << "gravity: " << (g_enabled ? "ON" : "OFF") << "\n"
            << "sum of all forces: " << forces_sum << "\n"
            << "avg of all forces: " << forces_sum / objs.size() << "\n"
-           << "last dt: " << last_dt << "\n";
+           << "frame time (ms): " << last_dt * 1000.0f << "\n";
+        //logfile << forces_sum / objs.size() << ",";
         status.setString(ss.str());
         status.setFillColor(sf::Color::White);
         status.setScale(0.8, 0.8);
