@@ -138,7 +138,7 @@ int main() {
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
     for (size_t i = 0; i < 10; ++i) {
-        objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 100) - 50, (rand() % 100) - 50), rand() % 100);
+        objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 100) - 50, (rand() % 100) - 50), rand() % 80 + 20);
     }
 
     //std::ofstream logfile("averages.csv", std::ios::out);
