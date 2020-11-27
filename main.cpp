@@ -20,6 +20,7 @@ std::ostream& operator<<(std::ostream& os, const vec2& v) {
 #define EPS 0
 
 class PhysicsObject {
+    sf::CircleShape m_shape;
 public:
     vec2 pos;
     vec2 vel;
@@ -30,7 +31,10 @@ public:
         : pos(pos)
         , vel(vel)
         , radius(radius)
-        , mass(M_PI * radius * radius) { }
+        , mass(M_PI * radius * radius) {
+        m_shape = sf::CircleShape(radius, 100);
+        m_shape.setOrigin(radius, radius);
+    }
     virtual ~PhysicsObject() { }
 
     bool collides_with(const PhysicsObject& other) {
@@ -61,13 +65,12 @@ public:
             vel = glm::reflect(vel, vec2(0, -1));
         }
         pos += vel * dt;
+        m_shape.setPosition(pos.x, pos.y);
     }
 
-    sf::CircleShape shape() const {
-        auto s = sf::CircleShape(radius, 100);
-        s.setPosition(pos.x, pos.y);
-        s.setOrigin(radius, radius);
-        return s;
+
+    sf::CircleShape& shape() {
+        return m_shape;
     }
 
     static void resolve_position(PhysicsObject& a, PhysicsObject& b) {
@@ -80,16 +83,16 @@ public:
         }
     }
 
-    static void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
+    static inline void resolve_collision(PhysicsObject& a, PhysicsObject& b) {
         resolve_position(a, b);
         // aliases to make formulas look like common elastic collision formulas
         // which makes cross checking them for mistakes easier
-        vec2 p1 = a.pos;
-        vec2 p2 = b.pos;
-        vec2 v1 = a.vel;
-        vec2 v2 = b.vel;
-        float m1 = a.mass;
-        float m2 = b.mass;
+        vec2& p1 = a.pos;
+        vec2& p2 = b.pos;
+        vec2& v1 = a.vel;
+        vec2& v2 = b.vel;
+        float& m1 = a.mass;
+        float& m2 = b.mass;
         vec2 vp1p2 = p2 - p1;
         // normal vector
         vec2 vn = glm::normalize(vp1p2);
@@ -194,7 +197,7 @@ int main() {
         float dt = dt_clock.restart().asSeconds();
         last_dt = dt;
         if (!pause || step) {
-            const size_t n = 100;
+            const size_t n = 1;
             for (size_t i = 0; i < n; ++i) {
                 for (auto& obj : objs) {
                     if (g_enabled) {
@@ -219,7 +222,7 @@ int main() {
             }
         }
         window.clear();
-        for (const auto& obj : objs) {
+        for (auto& obj : objs) {
             window.draw(obj.shape());
             if (show_forces) {
                 draw_force(obj.pos, obj.vel);
