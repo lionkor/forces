@@ -21,6 +21,7 @@ std::ostream& operator<<(std::ostream& os, const vec2& v) {
 
 class PhysicsObject {
     sf::CircleShape m_shape;
+
 public:
     vec2 pos;
     vec2 vel;
@@ -68,7 +69,6 @@ public:
         m_shape.setPosition(pos.x, pos.y);
     }
 
-
     sf::CircleShape& shape() {
         return m_shape;
     }
@@ -76,10 +76,17 @@ public:
     static void resolve_position(PhysicsObject& a, PhysicsObject& b) {
         vec2 direction_a_to_b = glm::normalize(b.pos - a.pos);
         vec2 direction_b_to_a = -direction_a_to_b;
+        float combined_mass = a.mass + b.mass;
         float combined_depth = a.depth_into(b);
         if (combined_depth < a.radius + b.radius - 0.1) {
-            a.pos += direction_b_to_a * (combined_depth / 2.f + FLT_EPSILON);
-            b.pos += direction_a_to_b * (combined_depth / 2.f + FLT_EPSILON);
+            float a_mass_of_total = a.mass / combined_mass;
+            float b_mass_of_total = b.mass / combined_mass;
+            float a_diff = a_mass_of_total * combined_depth;
+            float b_diff = b_mass_of_total * combined_depth;
+            vec2 a_change = direction_b_to_a * b_diff;
+            vec2 b_change = direction_a_to_b * a_diff;
+            b.pos += b_change;
+            a.pos += a_change;
         }
     }
 
@@ -136,12 +143,13 @@ int main() {
     sf::Event event;
 
     std::vector<PhysicsObject> objs;
-    //objs.emplace_back(vec2(100, 200), vec2(300, 0), 100);
+    objs.emplace_back(vec2(window.getSize().x / 2.0f, window.getSize().y / 2.0f), vec2(0, 0), 200);
     //objs.emplace_back(vec2(600, 200), vec2(0, 0), 100);
     //objs.emplace_back(vec2(900, 240), vec2(0, 0), 100);
     //objs.emplace_back(vec2(1100, 250), vec2(0, 0), 100);
-    for (size_t i = 0; i < 10; ++i) {
-        objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 100) - 50, (rand() % 100) - 50), rand() % 80 + 20);
+    for (size_t i = 0; i < 200; ++i) {
+        //objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 100) - 50, (rand() % 100) - 50), rand() % 80 + 20);
+        objs.emplace_back(vec2(rand() % window.getSize().x, rand() % window.getSize().y), vec2((rand() % 250) - 125), 10);
     }
 
     //std::ofstream logfile("averages.csv", std::ios::out);
